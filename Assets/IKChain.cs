@@ -26,7 +26,7 @@ public class IKChain : MonoBehaviour
 
     // Cached bone lengths between consecutive links.
     private float[] _lengths;
-    public float TotalLength { get => _lengths.Sum(); }
+    public float TotalLength { get => (_lengths == null ? 0: _lengths.Sum()); }
 
     [Header("Info")]
     public bool TargetInReach = false;
@@ -120,7 +120,7 @@ public class IKChain : MonoBehaviour
                 break;
         }
 
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < count; i++) //Assign rotation
         {
             if (i < count - 1)
             {

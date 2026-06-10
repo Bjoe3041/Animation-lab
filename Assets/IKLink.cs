@@ -9,3 +9,8 @@ public class IKLink : MonoBehaviour
     public float PositionSpringModifier = 1.0f;
 
 }
+public enum IKRotationMode
+{
+    RotateTowardsPole,
+    MimicPoleRotationLocally
+}

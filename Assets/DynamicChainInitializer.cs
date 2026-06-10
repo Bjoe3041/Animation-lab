@@ -23,6 +23,11 @@ public class DynamicChainInitializer : MonoBehaviour
             ConfigurableJoint rootJoint = dynamicChain.chainTransforms[0].gameObject.AddComponent<ConfigurableJoint>(); //Root joint
             rootJoint.connectedBody = ikChain.root.GetComponent<Rigidbody>();
             dynamicChain.chainTransforms[0].transform.rotation = ikChain.links[0].transform.rotation;
+
+            rootJoint.autoConfigureConnectedAnchor = false;
+            rootJoint.anchor = Vector3.zero;
+            rootJoint.connectedAnchor = Vector3.zero;
+
             rootJoint.xMotion = ConfigurableJointMotion.Locked;
             rootJoint.yMotion = ConfigurableJointMotion.Locked;
             rootJoint.zMotion = ConfigurableJointMotion.Locked;
@@ -30,7 +35,7 @@ public class DynamicChainInitializer : MonoBehaviour
             rootJoint.angularXMotion = ConfigurableJointMotion.Free;
             rootJoint.angularYMotion = ConfigurableJointMotion.Free;
             rootJoint.angularZMotion = ConfigurableJointMotion.Free;
-            rootJoint.transform.parent = rootJoint.connectedBody.transform;
+            //rootJoint.transform.parent = rootJoint.connectedBody.transform;
 
 
             for (int i = 1; i < dynamicChain.chainTransforms.Count; i++)
@@ -53,7 +58,7 @@ public class DynamicChainInitializer : MonoBehaviour
                 joint.angularYMotion = ConfigurableJointMotion.Free;
                 joint.angularZMotion = ConfigurableJointMotion.Free;
 
-                joint.transform.parent = rootJoint.connectedBody.transform;
+                //joint.transform.parent = rootJoint.connectedBody.transform;
 
                 // Anchor at the current link's position in the previous link's local space
                 joint.autoConfigureConnectedAnchor = false;
