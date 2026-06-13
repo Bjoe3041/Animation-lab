@@ -31,18 +31,16 @@ public class IKChain : MonoBehaviour
     [Header("Info")]
     public bool TargetInReach = false;
 
-    private void Start()
-    {
-        InitialiseChain();
-    }
+    public IKRotationMode rotationMode;
 
-    private void LateUpdate()
+    public DynamicChainInitializer dynamicChainCounterpart;
+
+    private void Update()
     {
         if (!IsValid()) return;
         SolveIK();
     }
 
-  
     public void InitialiseChain()
     {
         if (links == null || links.Count < 2) return;
@@ -57,7 +55,8 @@ public class IKChain : MonoBehaviour
         }
 
         Debug.Log("Arm length is: " + TotalLength);
-    }
+        dynamicChainCounterpart.InitializeDynamicChain();
+    } 
 
     private void SolveIK()
     {
@@ -120,22 +119,86 @@ public class IKChain : MonoBehaviour
                 break;
         }
 
+        //Rotation
         for (int i = 0; i < count; i++) //Assign rotation
         {
-            if (i < count - 1)
+            if(rotationMode == IKRotationMode.RotateTowardsPole)
             {
-                Vector3 forward = (links[i + 1].transform.position - links[i].transform.position).normalized;
-                Vector3 up = (links[i].rotationPole.transform.position - links[i].transform.position).normalized;
+                if (i < count - 1)
+                {
+                    Vector3 forward = (links[i + 1].transform.position - links[i].transform.position).normalized;
+                    Vector3 up = (links[i].rotationPole.transform.position - links[i].transform.position).normalized;
 
-                if (Vector3.Cross(forward, up).sqrMagnitude < 0.0001f)
-                    up = Vector3.right;
+                    if (Vector3.Cross(forward, up).sqrMagnitude < 0.0001f)
+                        up = Vector3.right;
 
-                links[i].transform.rotation = Quaternion.LookRotation(forward, up);
+                    links[i].transform.rotation = Quaternion.LookRotation(forward, up);
+                }
+                else
+                {
+                    if (count >= 2)
+                        links[i].transform.rotation = links[i - 1].transform.rotation;
+                }
             }
-            else
+            if (rotationMode == IKRotationMode.MimicPoleRotationLocally)
             {
-                if (count >= 2)
-                    links[i].transform.rotation = links[i - 1].transform.rotation;
+                Vector3 carriedUp = links[0].rotationPole.transform.rotation * Vector3.up;
+
+                for (int j = 0; j < count; j++)
+                {
+                    Vector3 forward = j < count - 1
+                        ? (links[j + 1].transform.position - links[j].transform.position).normalized
+                        : (j >= 1 ? (links[j].transform.position - links[j - 1].transform.position).normalized : Vector3.forward);
+
+                    Vector3 poleUp = links[j].rotationPole.transform.rotation * Vector3.up;
+                    Vector3 projectedPoleUp = Vector3.ProjectOnPlane(poleUp, forward);
+                    Vector3 projectedCarriedUp = Vector3.ProjectOnPlane(carriedUp, forward);
+
+                    Vector3 chosenUp;
+                    float poleConfidence = projectedPoleUp.magnitude;
+                    float carriedConfidence = projectedCarriedUp.magnitude;
+
+                    if (poleConfidence > 0.8f)
+                    {
+                        chosenUp = projectedPoleUp.normalized;
+                        carriedUp = chosenUp;
+                    }
+                    else if (carriedConfidence > 0.001f)
+                    {
+                        // Pole up is near-singular, use the carried up from previous links instead
+                        chosenUp = projectedCarriedUp.normalized;
+                        // Don't update carriedUp here, keep carrying the last good value
+                    }
+                    else
+                    {
+                        // Both are degenerate, keep whatever we had
+                        chosenUp = carriedUp;
+                    }
+
+                    links[j].transform.rotation = Quaternion.LookRotation(forward, chosenUp);
+                }
+            }
+            if (rotationMode == IKRotationMode.ZLocked)
+            {
+                for (int j = 0; j < count; j++)
+                {
+                    Vector3 forward = j < count - 1
+                        ? (links[j + 1].transform.position - links[j].transform.position).normalized
+                        : (j >= 1 ? (links[j].transform.position - links[j - 1].transform.position).normalized : Vector3.forward);
+
+                    Vector3 projectedUp = Vector3.ProjectOnPlane(Vector3.up, forward);
+
+                    Quaternion rotation;
+                    if (projectedUp.sqrMagnitude > 0.001f)
+                        rotation = Quaternion.LookRotation(forward, projectedUp.normalized);
+                    else
+                        rotation = Quaternion.LookRotation(forward, Vector3.forward);
+
+                    // Strip Z rotation entirely
+                    Vector3 euler = rotation.eulerAngles;
+                    euler.z = 0f;
+                    links[j].transform.rotation = Quaternion.Euler(euler);
+                }
             }
         }
     }

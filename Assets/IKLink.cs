@@ -12,5 +12,6 @@ public class IKLink : MonoBehaviour
 public enum IKRotationMode
 {
     RotateTowardsPole,
-    MimicPoleRotationLocally
+    MimicPoleRotationLocally,
+    ZLocked
 }

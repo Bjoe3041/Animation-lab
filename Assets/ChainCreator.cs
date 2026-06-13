@@ -17,11 +17,17 @@ public class ChainCreator : MonoBehaviour
         for (int i = 0; i < amount; i++)
         {
             yPosition += length * lengthModifierCurve.Evaluate((float)i / (float)amount);
-            GameObject g = Instantiate(ChainLink, startOffset + new Vector3(0, yPosition, 0) + transform.position, Quaternion.identity, ParentObject.transform);
+            Vector3 worldPos = transform.position + transform.TransformDirection(startOffset) + transform.up * yPosition;
+            GameObject g = Instantiate(ChainLink, worldPos, transform.rotation, ParentObject.transform);
+
             g.GetComponent<IKLink>().directionPole = directionPole;
             g.GetComponent<IKLink>().rotationPole = rotationPole;
             chain.links.Add(g.GetComponent<IKLink>());
-        } 
+
+        }
+
+        chain.InitialiseChain();
+
     }
 
    
