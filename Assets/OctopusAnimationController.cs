@@ -16,6 +16,11 @@ public class OctopusAnimationController : MonoBehaviour
             state = OctopusAnimationState.Swimming;
         if (Input.GetKeyDown(KeyCode.Alpha3))
             state = OctopusAnimationState.Walking;
+        if (Input.GetKeyDown(KeyCode.Alpha4))
+            state = OctopusAnimationState.GroupArms;
+        if (Input.GetKeyDown(KeyCode.Alpha5))
+            state = OctopusAnimationState.SpreadArms;
+
 
         if (state != _previousState)
         {
@@ -49,11 +54,12 @@ public class OctopusAnimationController : MonoBehaviour
                 // No transition needed since arms hold their current positions.
                 break;
 
+            case OctopusAnimationState.GroupArms:
             case OctopusAnimationState.Swimming:
                 foreach (var arm in arms)
                     arm.GroupArm();
                 break;
-
+            case OctopusAnimationState.SpreadArms:
             case OctopusAnimationState.Walking:
                 foreach (var arm in arms)
                     arm.SpreadOutArm();
@@ -66,5 +72,7 @@ public enum OctopusAnimationState
 {
     Idle,
     Swimming,
-    Walking
+    Walking,
+    SpreadArms,
+    GroupArms
 }

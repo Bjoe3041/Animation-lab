@@ -33,8 +33,6 @@ public class IKChain : MonoBehaviour
 
     public IKRotationMode rotationMode;
 
-    public DynamicChainInitializer dynamicChainCounterpart;
-
     private void Update()
     {
         if (!IsValid()) return;
@@ -55,7 +53,6 @@ public class IKChain : MonoBehaviour
         }
 
         Debug.Log("Arm length is: " + TotalLength);
-        dynamicChainCounterpart.InitializeDynamicChain();
     } 
 
     private void SolveIK()
