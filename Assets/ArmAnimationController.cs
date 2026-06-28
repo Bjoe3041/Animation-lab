@@ -3,140 +3,85 @@ using UnityEngine;
 public class ArmAnimationController : MonoBehaviour
 {
     [Header("Targets")]
-    public Transform animationEndpointTarget;
-    public Transform walkingTarget;
+    public Transform chainTarget;
+    public Vector3 targetedPoint;
+    public float targetingSpeed;
 
     [Header("Position Offsets (local space)")]
     public Vector3 spreadOutArmOffset;
     public Vector3 groupArmOffset;
+    public Vector3 walkOffset;
 
-    [Header("Movement")]
-    public Vector3 movementDirection;
-
-    [Header("Transition Speed")]
-    public float spreadGroupSmoothTime = 0.2f;
-
-    [Header("Swim Settings")]
-    public float swimDriftRadius = 0.3f;
-    public float swimFrequency = 1.2f;
-    [Tooltip("Per-arm phase offset so arms don't all move in sync.")]
-    public float swimPhaseOffset = 0f;
-
-    [Header("Walk Settings")]
-    public bool isLeadPairArm = true;
-    public float stepHeight = 0.25f;
-    public float stepSmoothTime = 0.12f;
-    [Tooltip("Distance the body travels before triggering a new step.")]
-    public float stepDistanceThreshold = 0.4f;
-    [Tooltip("Minimum seconds between steps regardless of distance.")]
-    public float stepCooldown = 0.25f;
-    [Tooltip("How far ahead of current position to plant the foot.")]
-    public float stepDirectionLead = 0.35f;
+    public Vector3 movementDirection, currentStepTargetPoint, stepTargetArea;
     public LayerMask groundMask;
+    public AnimationCurve legLiftCurve;
+    bool Stepping = false;
+    public float maxFootDistanceFromBody;
+    public float stepSpeed, stepProgress;
 
-    // ── Private state ────────────────────────────────────────────────────────
-
-    Vector3 _smoothDampVelocity;
-    Vector3 _walkStepVelocity;
-
-    // The world-space position the foot is currently smoothing toward.
-    Vector3 _currentStepTarget;
-    // Body position recorded when the last step was planted.
-    Vector3 _bodyPositionAtLastStep;
-    float _lastStepTime;
-    bool _stepTargetInitialized;
-
-    // ── Public methods ────────────────────────────────────────────────────────
+    private void FixedUpdate()
+    {
+        chainTarget.transform.position = Vector3.Lerp(chainTarget.transform.position, targetedPoint, targetingSpeed);    
+    }
 
     public void SpreadOutArm()
     {
-        Vector3 worldTarget = transform.TransformPoint(spreadOutArmOffset);
-        animationEndpointTarget.position = Vector3.SmoothDamp(
-            animationEndpointTarget.position,
-            worldTarget,
-            ref _smoothDampVelocity,
-            spreadGroupSmoothTime);
+        targetedPoint = transform.TransformPoint(spreadOutArmOffset);
     }
 
     public void GroupArm()
     {
-        Vector3 worldTarget = transform.TransformPoint(groupArmOffset);
-        animationEndpointTarget.position = Vector3.SmoothDamp(
-            animationEndpointTarget.position,
-            worldTarget,
-            ref _smoothDampVelocity,
-            spreadGroupSmoothTime);
+        targetedPoint = transform.TransformPoint(groupArmOffset);
     }
 
-    public void DuringSwim()
+    public void DuringSwim() //called repeatedly when Swim state is active from OctopusAnimationController
     {
-        // Independent sine waves per axis + individual phase so arms drift individually.
-        float t = Time.time * swimFrequency + swimPhaseOffset;
-        Vector3 drift = new Vector3(
-            Mathf.Sin(t) * swimDriftRadius,
-            Mathf.Sin(t * 1.3f + 1f) * swimDriftRadius * 0.5f,
-            Mathf.Cos(t * 0.9f + 2f) * swimDriftRadius
-        );
+        Vector3 drift = new Vector3(Random.Range(-1,2), Random.Range(-1, 2), Random.Range(-1, 2));
 
         Vector3 worldBase = transform.TransformPoint(groupArmOffset);
-        animationEndpointTarget.position = worldBase + drift;
+        chainTarget.position = worldBase + drift * 20f * Time.deltaTime;
     }
 
-    public void DuringWalk()
+    public void DuringWalk() //called repeatedly when Walk state is active from OctopusAnimationController
     {
-        if (!_stepTargetInitialized)
+        //When chainTarget is far away from transform
+        //Wide capsule raycast for ground, at walkoffset + random vector3 + movementDirection.
+        //Aim towards transform.down, since the creature can walk on walls and roofs.
+        //When hit move targetedPoint to hit point over many iterations, and lift the targetedPoint by a value specified by an animation curve, which takes the "progress" of the movement towards the new assigned position, from 0 to 1.
+        //The lift should be applied in the transform.up direction, which makes the creature "lift" its foot when it moves it.
+
+        Debug.DrawRay(transform.position, transform.up*10, Color.red);
+
+        if(Vector3.Distance(transform.position, targetedPoint) > maxFootDistanceFromBody)
+            BeginStep();
+
+        if (Stepping)
+            ContinueStep();
+
+                                   
+        void BeginStep()
         {
-            _currentStepTarget = GetGroundTarget();
-            _bodyPositionAtLastStep = transform.position;
-            _stepTargetInitialized = true;
+            Stepping = true;
+            currentStepTargetPoint = transform.TransformPoint(stepTargetArea) + movementDirection;
         }
 
-        // Lead-pair arms step first; trail-pair arms wait one half-cycle.
-        bool pairReady = isLeadPairArm
-            ? true
-            : (Time.time - _lastStepTime) > stepCooldown * 0.5f;
-
-        float distanceDrifted = Vector3.Distance(
-            new Vector3(transform.position.x, 0, transform.position.z),
-            new Vector3(_bodyPositionAtLastStep.x, 0, _bodyPositionAtLastStep.z));
-
-        bool cooldownExpired = (Time.time - _lastStepTime) > stepCooldown;
-        bool distanceTrigger = distanceDrifted > stepDistanceThreshold;
-
-        if (pairReady && cooldownExpired && distanceTrigger)
+        void ContinueStep()
         {
-            _currentStepTarget = GetGroundTarget();
-            _bodyPositionAtLastStep = transform.position;
-            _lastStepTime = Time.time;
+            stepProgress += Time.deltaTime * stepSpeed;
+            Vector3 upwardsOffset = transform.up * legLiftCurve.Evaluate(stepProgress);
+            Vector3 horizontalOffset = Vector3.Lerp(targetedPoint, currentStepTargetPoint, stepProgress);
+
+            targetedPoint = horizontalOffset + upwardsOffset; //Later change to raycast down from this point
+
+            if (stepProgress >= 1)
+                EndStep();
         }
 
-        // Smooth the walking target toward the planted step position.
-        walkingTarget.position = Vector3.SmoothDamp(
-            walkingTarget.position,
-            _currentStepTarget,
-            ref _walkStepVelocity,
-            stepSmoothTime);
-
-        // Drive the IK endpoint to match the walking target.
-        animationEndpointTarget.position = walkingTarget.position;
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    Vector3 GetGroundTarget()
-    {
-        // Look for ground beneath the arm's natural reach point,
-        // offset forward by movement direction for anticipatory stepping.
-        Vector3 castOrigin = transform.TransformPoint(groupArmOffset)
-                           + movementDirection.normalized * stepDirectionLead
-                           + Vector3.up * 2f;
-
-        if (Physics.Raycast(castOrigin, Vector3.down, out RaycastHit hit, 10f, groundMask))
+        void EndStep()
         {
-            return hit.point + Vector3.up * stepHeight;
+            Stepping = false;
+            stepProgress = 0;
         }
 
-        // Fallback: use the current arm position elevated by step height.
-        return transform.TransformPoint(groupArmOffset) + Vector3.up * stepHeight;
     }
 }
